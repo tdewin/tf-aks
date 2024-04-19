@@ -1,3 +1,7 @@
+# Warning!
+All Kubernetes API and ingresses will publically accessible by default
+
+
 # az login
 make sure az works eg 
 ```bash
@@ -15,8 +19,11 @@ https://learn.microsoft.com/en-us/azure/virtual-machines/linux/ssh-from-windows
 
 
 # apply 
+```
 tf -chdir=aks_stage1 init
 tf -chdir=aks_stage1 apply -var='ownerref=jdoe' -var='owneremail=jdoe@acmecompany.com' -var='project=tfdemo'
 
 tf -chdir=aks_stage2 init
-tf -chdir=aks_stage2 apply -var='ownerref=jdoe' -var='owneremail=jdoe@acmecompany.com' -var='project=tfdemo'
+tf -chdir=aks_stage2 apply
+```
+
