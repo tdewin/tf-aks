@@ -1,13 +1,19 @@
 # az account list-locations | jq ".[] | .name"  | grep eu
 variable "azlocation" {
-  default     = "northeurope"
+  default     = "westeurope"
   description = "Location of the resource group."
+}
+
+variable "aksvmsize" {
+  type        = string
+  default     = "Standard_D4_v5"
+  description = "nodetype"
 }
 
 variable "ownerref" {
   type        = string
   default     = "jdoe"
-  description = "Owner of the project short name for naming resources"
+  description = "Owner of the project short name for naming resources or login"
 }
 
 variable "owneremail" {
@@ -36,6 +42,11 @@ variable "ssh_public_key" {
   description = "your ssh key path"
 }
 
+variable "allowips" {
+  type        = string
+  default     = "0.0.0.0/0"
+  description = "set on ingress for added security"
+}
 
 
 locals {
@@ -45,4 +56,5 @@ locals {
       activity = var.activity 
 	    project = var.project
   }
+  allowipsarr = split(",",var.allowips)
 }

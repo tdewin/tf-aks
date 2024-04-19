@@ -44,7 +44,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   default_node_pool {
     name       = "default"
     node_count = 1
-    vm_size    = "Standard_D4_v5"
+    vm_size    = var.aksvmsize
     upgrade_settings {
       max_surge = "10%"
     }
@@ -65,6 +65,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   dns_prefix = local.projectname
+
+  api_server_access_profile {
+    authorized_ip_ranges = local.allowipsarr
+  }
 }
 
 
@@ -97,6 +101,11 @@ resource "helm_release" "k10" {
   set {
     name  = "ingress.class"
     value = "webapprouting.kubernetes.azure.com"
+  }
+
+  set {
+    name = "ingress.annotations.nginx\\.ingress\\.kubernetes\\.io/whitelist-source-range"
+    value = var.allowips
   }
 
   set {
@@ -295,6 +304,7 @@ resource "kubernetes_ingress_v1" "stock-demo-ingress" {
     annotations = {
       "nginx.ingress.kubernetes.io/use-regex" =  true
       "nginx.ingress.kubernetes.io/rewrite-target" = "/$2"
+      "nginx.ingress.kubernetes.io/whitelist-source-range" = var.allowips
     }
   }
 
