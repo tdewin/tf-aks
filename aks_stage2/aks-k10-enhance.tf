@@ -181,7 +181,63 @@ resource "kubernetes_config_map_v1" "k10-eula-info" {
 
   data = {
     accepted="true"
-    company="Veeam"
+    company=split("@",data.terraform_remote_state.aksone.outputs.owneremail)[1]
     email=data.terraform_remote_state.aksone.outputs.owneremail
+  }
+}
+
+
+resource "kubernetes_service_account" "vbr" {
+  metadata {
+    name = "vbr"
+    namespace = "kasten-io"
+  }
+
+  automount_service_account_token = true
+}
+
+resource "kubernetes_secret" "vbrsecret" {
+  metadata {
+    namespace = "kasten-io"
+    annotations = {
+      "kubernetes.io/service-account.name" = kubernetes_service_account.vbr.metadata.0.name
+    }
+    generate_name = "vbr-sa-"
+  }
+
+  type                           = "kubernetes.io/service-account-token"
+  wait_for_service_account_token = true
+}
+
+resource "kubernetes_cluster_role_binding" "vbrcrb" {
+  metadata {
+    name = "vbr-crb-k10admin"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "k10-admin"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "vbr"
+    namespace = "kasten-io"
+  }
+}
+
+resource "kubernetes_role_binding" "vbrrbns" {
+  metadata {
+    name = "vbr-rb-ns-k10admin"
+    namespace = "kasten-io"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = "k10-ns-admin"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "vbr"
+    namespace = "kasten-io"
   }
 }
