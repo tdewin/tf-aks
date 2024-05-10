@@ -48,6 +48,20 @@ variable "allowips" {
   description = "set on ingress for added security"
 }
 
+variable "certificatehost" {
+  type = string
+  default = "k10.aks.az.test"
+}
+
+variable "certificateorg" {
+  type = string
+  default = "Kupboard incorporated"
+}
+
+variable "tokenexpirehours" {
+  type = number
+  default = 36
+}
 
 locals {
   projectname = format("%s-%s", var.ownerref, var.project)

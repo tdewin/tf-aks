@@ -127,6 +127,10 @@ resource "kubernetes_manifest" "bppostgres" {
 }
 
 resource "kubernetes_manifest" "bpbinding" {
+  depends_on = [
+    kubernetes_manifest.bppostgres
+  ]
+
   manifest = {
     apiVersion = "config.kio.kasten.io/v1alpha1"
     kind       = "BlueprintBinding"

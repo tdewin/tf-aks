@@ -1,5 +1,50 @@
 # change variables in variables.tf !!!
 
+resource "tls_private_key" "private_key" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P384"
+}
+
+resource "local_file" "store_pem" { 
+  depends_on = [tls_private_key.private_key]
+  filename = "${path.module}/private_key.pem"
+  content = tls_private_key.private_key.private_key_pem
+}
+
+resource "tls_self_signed_cert" "cert" {
+  depends_on = [local_file.store_pem]
+  private_key_pem = tls_private_key.private_key.private_key_pem
+
+  subject {
+    common_name  = var.certificatehost
+    organization = var.certificateorg
+  }
+
+  dns_names = [
+    var.certificatehost
+  ]
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+    "data_encipherment" 
+  ]
+
+  validity_period_hours = 24*3650
+}
+
+
+resource "local_file" "store_cert" { 
+  depends_on = [tls_self_signed_cert.cert]
+  filename = "${path.module}/publickey.crt"
+  content = tls_self_signed_cert.cert.cert_pem
+}
+
+
+
+
+
 resource "azurerm_resource_group" "rg" {
   location = var.azlocation
   name     = "${local.projectname}-rg"
@@ -83,12 +128,41 @@ resource "helm_release" "azvolumesnaphelmchart" {
   chart      = "azvolumesnap"  
 }
 
-resource "helm_release" "k10" {
+resource "kubernetes_namespace" "kastenio" {
   depends_on = [azurerm_kubernetes_cluster.aks]
 
+  metadata {
+    name = "kasten-io"
+    
+    labels = {
+      prodlevel = "backupinfra"
+    }
+  }
+}
+
+resource "kubernetes_secret" "tlscert" {
+  depends_on = [kubernetes_namespace.kastenio,tls_private_key.private_key,tls_self_signed_cert.cert]
+
+  metadata {
+    name = "k10tlscert"
+    namespace = kubernetes_namespace.kastenio.metadata.0.name
+  }
+
+  data = {
+    "tls.crt" =  tls_self_signed_cert.cert.cert_pem  
+    "tls.key" =  tls_private_key.private_key.private_key_pem
+  }
+
+  type = "kubernetes.io/tls"
+}
+
+
+resource "helm_release" "k10" {
+  depends_on = [kubernetes_secret.tlscert]
+
   name = "k10"
-  namespace = "kasten-io"
-  create_namespace = true
+  namespace = kubernetes_namespace.kastenio.metadata.0.name
+
 
   repository = "https://charts.kasten.io/"
   chart      = "k10"
@@ -109,6 +183,21 @@ resource "helm_release" "k10" {
   }
 
   set {
+    name = "ingress.host"
+    value = var.certificatehost
+  }
+
+  set {
+    name = "ingress.tls.enabled"
+    value = true
+  }
+
+  set {
+    name = "ingress.tls.secretName"
+    value = "k10tlscert"
+  }
+
+  set {
     name  = "auth.tokenAuth.enabled"
     value = true
   }
@@ -119,6 +208,17 @@ resource "helm_release" "k10" {
   }  
 }
 
+resource "kubernetes_token_request_v1" "k10token" {
+  depends_on = [helm_release.k10]
+
+  metadata {
+    name = "k10-k10"
+    namespace = kubernetes_namespace.kastenio.metadata.0.name
+  }
+  spec {
+    expiration_seconds = var.tokenexpirehours*3600
+  }
+}
 
 
 resource "kubernetes_namespace" "stock" {
@@ -132,6 +232,24 @@ resource "kubernetes_namespace" "stock" {
     }
   }
 }
+
+
+resource "kubernetes_secret" "tlscertstock" {
+  depends_on = [kubernetes_namespace.stock,tls_private_key.private_key,tls_self_signed_cert.cert]
+
+  metadata {
+    name = "k10tlscert"
+    namespace = "stock"
+  }
+
+  data = {
+    "tls.crt" =  tls_self_signed_cert.cert.cert_pem  
+    "tls.key" =  tls_private_key.private_key.private_key_pem
+  }
+
+  type = "kubernetes.io/tls"
+}
+
 
 resource "kubernetes_namespace" "hr" {
   depends_on = [azurerm_kubernetes_cluster.aks]
@@ -296,7 +414,9 @@ resource "kubernetes_service" "stock-demo-svc" {
 }
 
 resource "kubernetes_ingress_v1" "stock-demo-ingress" {
-  depends_on = [kubernetes_namespace.stock]
+  depends_on = [kubernetes_secret.tlscertstock]
+
+  wait_for_load_balancer = true
 
   metadata {
     name = "stock-demo-ingress"
@@ -310,7 +430,12 @@ resource "kubernetes_ingress_v1" "stock-demo-ingress" {
 
   spec {
     ingress_class_name = "webapprouting.kubernetes.azure.com"
+    tls {
+      hosts = [var.certificatehost ]
+      secret_name = "k10tlscert"
+    }
     rule {
+      host = var.certificatehost
       http {
         path {
           backend {
