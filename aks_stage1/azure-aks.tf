@@ -16,12 +16,12 @@ resource "tls_self_signed_cert" "cert" {
   private_key_pem = tls_private_key.private_key.private_key_pem
 
   subject {
-    common_name  = var.certificatehost
+    common_name  = local.certificatehost
     organization = var.certificateorg
   }
 
   dns_names = [
-    var.certificatehost
+    local.certificatehost
   ]
 
   allowed_uses = [
@@ -184,7 +184,7 @@ resource "helm_release" "k10" {
 
   set {
     name = "ingress.host"
-    value = var.certificatehost
+    value = local.certificatehost
   }
 
   set {
@@ -431,11 +431,11 @@ resource "kubernetes_ingress_v1" "stock-demo-ingress" {
   spec {
     ingress_class_name = "webapprouting.kubernetes.azure.com"
     tls {
-      hosts = [var.certificatehost ]
+      hosts = [local.certificatehost ]
       secret_name = "k10tlscert"
     }
     rule {
-      host = var.certificatehost
+      host = local.certificatehost
       http {
         path {
           backend {

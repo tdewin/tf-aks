@@ -48,9 +48,9 @@ variable "allowips" {
   description = "set on ingress for added security"
 }
 
-variable "certificatehost" {
+variable "postcertificatehost" {
   type = string
-  default = "k10.aks.az.test"
+  default = "test"
 }
 
 variable "certificateorg" {
@@ -65,6 +65,7 @@ variable "tokenexpirehours" {
 
 locals {
   projectname = format("%s-%s", var.ownerref, var.project)
+  certificatehost = format("%s.%s.%s",var.ownerref, var.project,var.postcertificatehost)
   tags = {
 	    owner = var.owneremail
       activity = var.activity 
